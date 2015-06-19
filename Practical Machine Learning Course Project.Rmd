@@ -1,0 +1,609 @@
+---
+title: "Practical Machine learning Course Project"
+author: "Anusha Koganti"
+date: "June 18, 2015"
+output: html_document
+---
+
+##Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, goal will be to use the data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset). 
+
+###Data 
+
+The training data for this project are available here: 
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here: 
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+The data for this project come from this source: <http://groupware.les.inf.puc-rio.br/har>. 
+
+
+###Project Submission
+
+The goal of the project is to predict the manner in which they did the excercise. This is the "classe" variable in the training set. A report created based on how the model was built, use of cross validation, choices taken, etc. Also have to use predication model to predict 20 different test cases.
+
+1. Submit the githhub link with R markdown and compiled HTML file describing the analysis. 
+
+2. Also apply machine learning algorithm to the 20 test cases available in the test data above. 
+
+###Code and Results
+
+Installing packages, loading the libraries and setting the seed for reproduceability:
+
+```r
+library(caret)
+```
+
+```
+## Loading required package: lattice
+## Loading required package: ggplot2
+```
+
+```r
+library(randomForest)
+```
+
+```
+## randomForest 4.6-10
+## Type rfNews() to see new features/changes/bug fixes.
+```
+
+```r
+library(rpart) 
+library(rpart.plot)
+```
+
+```r
+set.seed(1234)
+```
+
+####Loading the datasets and preliminary cleaning
+
+```r
+trainingset <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+testingset <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+dim(trainingset)
+```
+
+```
+##[1] 19622   160
+```
+
+```r
+dim(testingset)
+```
+
+```
+##[1] 20 160
+```
+
+```r
+trainingset<-trainingset[,colSums(is.na(trainingset)) == 0]
+testingset <-testingset[,colSums(is.na(testingset)) == 0]
+trainingset   <-trainingset[,-c(1:7)]
+testingset <-testingset[,-c(1:7)]
+dim(trainingset)
+```
+
+```
+##[1] 19622   53
+```
+
+```r
+dim(testingset)
+```
+
+```
+##[1]20 53
+```
+
+```r
+head(training set)
+```
+
+```
+##roll_belt pitch_belt yaw_belt total_accel_belt gyros_belt_x
+1      1.41       8.07    -94.4                3         0.00
+2      1.41       8.07    -94.4                3         0.02
+3      1.42       8.07    -94.4                3         0.00
+4      1.48       8.05    -94.4                3         0.02
+5      1.48       8.07    -94.4                3         0.02
+6      1.45       8.06    -94.4                3         0.02
+  gyros_belt_y gyros_belt_z accel_belt_x accel_belt_y accel_belt_z
+1         0.00        -0.02          -21            4           22
+2         0.00        -0.02          -22            4           22
+3         0.00        -0.02          -20            5           23
+4         0.00        -0.03          -22            3           21
+5         0.02        -0.02          -21            2           24
+6         0.00        -0.02          -21            4           21
+  magnet_belt_x magnet_belt_y magnet_belt_z roll_arm pitch_arm yaw_arm
+1            -3           599          -313     -128      22.5    -161
+2            -7           608          -311     -128      22.5    -161
+3            -2           600          -305     -128      22.5    -161
+4            -6           604          -310     -128      22.1    -161
+5            -6           600          -302     -128      22.1    -161
+6             0           603          -312     -128      22.0    -161
+  total_accel_arm gyros_arm_x gyros_arm_y gyros_arm_z accel_arm_x
+1              34        0.00        0.00       -0.02        -288
+2              34        0.02       -0.02       -0.02        -290
+3              34        0.02       -0.02       -0.02        -289
+4              34        0.02       -0.03        0.02        -289
+5              34        0.00       -0.03        0.00        -289
+6              34        0.02       -0.03        0.00        -289
+  accel_arm_y accel_arm_z magnet_arm_x magnet_arm_y magnet_arm_z
+1         109        -123         -368          337          516
+2         110        -125         -369          337          513
+3         110        -126         -368          344          513
+4         111        -123         -372          344          512
+5         111        -123         -374          337          506
+6         111        -122         -369          342          513
+  roll_dumbbell pitch_dumbbell yaw_dumbbell total_accel_dumbbell
+1      13.05217      -70.49400    -84.87394                   37
+2      13.13074      -70.63751    -84.71065                   37
+3      12.85075      -70.27812    -85.14078                   37
+4      13.43120      -70.39379    -84.87363                   37
+5      13.37872      -70.42856    -84.85306                   37
+6      13.38246      -70.81759    -84.46500                   37
+  gyros_dumbbell_x gyros_dumbbell_y gyros_dumbbell_z accel_dumbbell_x
+1                0            -0.02             0.00             -234
+2                0            -0.02             0.00             -233
+3                0            -0.02             0.00             -232
+4                0            -0.02            -0.02             -232
+5                0            -0.02             0.00             -233
+6                0            -0.02             0.00             -234
+  accel_dumbbell_y accel_dumbbell_z magnet_dumbbell_x magnet_dumbbell_y
+1               47             -271              -559               293
+2               47             -269              -555               296
+3               46             -270              -561               298
+4               48             -269              -552               303
+5               48             -270              -554               292
+6               48             -269              -558               294
+  magnet_dumbbell_z roll_forearm pitch_forearm yaw_forearm
+1               -65         28.4         -63.9        -153
+2               -64         28.3         -63.9        -153
+3               -63         28.3         -63.9        -152
+4               -60         28.1         -63.9        -152
+5               -68         28.0         -63.9        -152
+6               -66         27.9         -63.9        -152
+  total_accel_forearm gyros_forearm_x gyros_forearm_y gyros_forearm_z
+1                  36            0.03            0.00           -0.02
+2                  36            0.02            0.00           -0.02
+3                  36            0.03           -0.02            0.00
+4                  36            0.02           -0.02            0.00
+5                  36            0.02            0.00           -0.02
+6                  36            0.02           -0.02           -0.03
+  accel_forearm_x accel_forearm_y accel_forearm_z magnet_forearm_x
+1             192             203            -215              -17
+2             192             203            -216              -18
+3             196             204            -213              -18
+4             189             206            -214              -16
+5             189             206            -214              -17
+6             193             203            -215               -9
+  magnet_forearm_y magnet_forearm_z classe
+1              654              476      A
+2              661              473      A
+3              658              469      A
+4              658              469      A
+5              655              473      A
+6              660              478      A
+```
+
+```r
+head(testingset)
+```
+
+```
+##roll_belt pitch_belt yaw_belt total_accel_belt gyros_belt_x
+1    123.00      27.00    -4.75               20        -0.50
+2      1.02       4.87   -88.90                4        -0.06
+3      0.87       1.82   -88.50                5         0.05
+4    125.00     -41.60   162.00               17         0.11
+5      1.35       3.33   -88.60                3         0.03
+6     -5.92       1.59   -87.70                4         0.10
+  gyros_belt_y gyros_belt_z accel_belt_x accel_belt_y accel_belt_z
+1        -0.02        -0.46          -38           69         -179
+2        -0.02        -0.07          -13           11           39
+3         0.02         0.03            1           -1           49
+4         0.11        -0.16           46           45         -156
+5         0.02         0.00           -8            4           27
+6         0.05        -0.13          -11          -16           38
+  magnet_belt_x magnet_belt_y magnet_belt_z roll_arm pitch_arm yaw_arm
+1           -13           581          -382     40.7    -27.80     178
+2            43           636          -309      0.0      0.00       0
+3            29           631          -312      0.0      0.00       0
+4           169           608          -304   -109.0     55.00    -142
+5            33           566          -418     76.1      2.76     102
+6            31           638          -291      0.0      0.00       0
+  total_accel_arm gyros_arm_x gyros_arm_y gyros_arm_z accel_arm_x
+1              10       -1.65        0.48       -0.18          16
+2              38       -1.17        0.85       -0.43        -290
+3              44        2.10       -1.36        1.13        -341
+4              25        0.22       -0.51        0.92        -238
+5              29       -1.96        0.79       -0.54        -197
+6              14        0.02        0.05       -0.07         -26
+  accel_arm_y accel_arm_z magnet_arm_x magnet_arm_y magnet_arm_z
+1          38          93         -326          385          481
+2         215         -90         -325          447          434
+3         245         -87         -264          474          413
+4         -57           6         -173          257          633
+5         200         -30         -170          275          617
+6         130         -19          396          176          516
+  roll_dumbbell pitch_dumbbell yaw_dumbbell total_accel_dumbbell
+1     -17.73748       24.96085    126.23596                    9
+2      54.47761      -53.69758    -75.51480                   31
+3      57.07031      -51.37303    -75.20287                   29
+4      43.10927      -30.04885   -103.32003                   18
+5    -101.38396      -53.43952    -14.19542                    4
+6      62.18750      -50.55595    -71.12063                   29
+  gyros_dumbbell_x gyros_dumbbell_y gyros_dumbbell_z accel_dumbbell_x
+1             0.64             0.06            -0.61               21
+2             0.34             0.05            -0.71             -153
+3             0.39             0.14            -0.34             -141
+4             0.10            -0.02             0.05              -51
+5             0.29            -0.47            -0.46              -18
+6            -0.59             0.80             1.10             -138
+  accel_dumbbell_y accel_dumbbell_z magnet_dumbbell_x magnet_dumbbell_y
+1              -15               81               523              -528
+2              155             -205              -502               388
+3              155             -196              -506               349
+4               72             -148              -576               238
+5              -30               -5              -424               252
+6              166             -186              -543               262
+  magnet_dumbbell_z roll_forearm pitch_forearm yaw_forearm
+1               -56          141         49.30       156.0
+2               -36          109        -17.60       106.0
+3                41          131        -32.60        93.0
+4                53            0          0.00         0.0
+5               312         -176         -2.16       -47.9
+6                96          150          1.46        89.7
+  total_accel_forearm gyros_forearm_x gyros_forearm_y gyros_forearm_z
+1                  33            0.74           -3.34           -0.59
+2                  39            1.12           -2.78           -0.18
+3                  34            0.18           -0.79            0.28
+4                  43            1.38            0.69            1.80
+5                  24           -0.75            3.10            0.80
+6                  43           -0.88            4.26            1.35
+  accel_forearm_x accel_forearm_y accel_forearm_z magnet_forearm_x
+1            -110             267            -149             -714
+2             212             297            -118             -237
+3             154             271            -129              -51
+4             -92             406             -39             -233
+5             131             -93             172              375
+6             230             322            -144             -300
+  magnet_forearm_y magnet_forearm_z problem_id
+1              419              617          1
+2              791              873          2
+3              698              783          3
+4              783              521          4
+5             -787               91          5
+6              800              884          6
+```
+
+```r
+subsamples <- createDataPartition(y=trainingset$classe, p=0.75, list=FALSE)
+subTraining <- trainingset[subsamples, ] 
+subTesting <- trainingset[-subsamples, ]
+dim(subTraining)
+```
+
+```
+##[1] 14718    53
+```
+
+```r
+dim(subTesting)
+```
+
+```
+##[1] 4904   53
+```
+
+```r
+head(subTraining)
+```
+
+```
+##roll_belt pitch_belt yaw_belt total_accel_belt gyros_belt_x
+2      1.41       8.07    -94.4                3         0.02
+3      1.42       8.07    -94.4                3         0.00
+4      1.48       8.05    -94.4                3         0.02
+5      1.48       8.07    -94.4                3         0.02
+6      1.45       8.06    -94.4                3         0.02
+7      1.42       8.09    -94.4                3         0.02
+  gyros_belt_y gyros_belt_z accel_belt_x accel_belt_y accel_belt_z
+2         0.00        -0.02          -22            4           22
+3         0.00        -0.02          -20            5           23
+4         0.00        -0.03          -22            3           21
+5         0.02        -0.02          -21            2           24
+6         0.00        -0.02          -21            4           21
+7         0.00        -0.02          -22            3           21
+  magnet_belt_x magnet_belt_y magnet_belt_z roll_arm pitch_arm yaw_arm
+2            -7           608          -311     -128      22.5    -161
+3            -2           600          -305     -128      22.5    -161
+4            -6           604          -310     -128      22.1    -161
+5            -6           600          -302     -128      22.1    -161
+6             0           603          -312     -128      22.0    -161
+7            -4           599          -311     -128      21.9    -161
+  total_accel_arm gyros_arm_x gyros_arm_y gyros_arm_z accel_arm_x
+2              34        0.02       -0.02       -0.02        -290
+3              34        0.02       -0.02       -0.02        -289
+4              34        0.02       -0.03        0.02        -289
+5              34        0.00       -0.03        0.00        -289
+6              34        0.02       -0.03        0.00        -289
+7              34        0.00       -0.03        0.00        -289
+  accel_arm_y accel_arm_z magnet_arm_x magnet_arm_y magnet_arm_z
+2         110        -125         -369          337          513
+3         110        -126         -368          344          513
+4         111        -123         -372          344          512
+5         111        -123         -374          337          506
+6         111        -122         -369          342          513
+7         111        -125         -373          336          509
+  roll_dumbbell pitch_dumbbell yaw_dumbbell total_accel_dumbbell
+2      13.13074      -70.63751    -84.71065                   37
+3      12.85075      -70.27812    -85.14078                   37
+4      13.43120      -70.39379    -84.87363                   37
+5      13.37872      -70.42856    -84.85306                   37
+6      13.38246      -70.81759    -84.46500                   37
+7      13.12695      -70.24757    -85.09961                   37
+  gyros_dumbbell_x gyros_dumbbell_y gyros_dumbbell_z accel_dumbbell_x
+2                0            -0.02             0.00             -233
+3                0            -0.02             0.00             -232
+4                0            -0.02            -0.02             -232
+5                0            -0.02             0.00             -233
+6                0            -0.02             0.00             -234
+7                0            -0.02             0.00             -232
+  accel_dumbbell_y accel_dumbbell_z magnet_dumbbell_x magnet_dumbbell_y
+2               47             -269              -555               296
+3               46             -270              -561               298
+4               48             -269              -552               303
+5               48             -270              -554               292
+6               48             -269              -558               294
+7               47             -270              -551               295
+  magnet_dumbbell_z roll_forearm pitch_forearm yaw_forearm
+2               -64         28.3         -63.9        -153
+3               -63         28.3         -63.9        -152
+4               -60         28.1         -63.9        -152
+5               -68         28.0         -63.9        -152
+6               -66         27.9         -63.9        -152
+7               -70         27.9         -63.9        -152
+  total_accel_forearm gyros_forearm_x gyros_forearm_y gyros_forearm_z
+2                  36            0.02            0.00           -0.02
+3                  36            0.03           -0.02            0.00
+4                  36            0.02           -0.02            0.00
+5                  36            0.02            0.00           -0.02
+6                  36            0.02           -0.02           -0.03
+7                  36            0.02            0.00           -0.02
+  accel_forearm_x accel_forearm_y accel_forearm_z magnet_forearm_x
+2             192             203            -216              -18
+3             196             204            -213              -18
+4             189             206            -214              -16
+5             189             206            -214              -17
+6             193             203            -215               -9
+7             195             205            -215              -18
+  magnet_forearm_y magnet_forearm_z classe
+2              661              473      A
+3              658              469      A
+4              658              469      A
+5              655              473      A
+6              660              478      A
+7              659              470      A
+```
+
+```r
+head(subTesting)
+```
+
+```
+##  roll_belt pitch_belt yaw_belt total_accel_belt gyros_belt_x
+1       1.41       8.07    -94.4                3         0.00
+21      1.60       8.10    -94.4                3         0.02
+22      1.57       8.09    -94.4                3         0.02
+23      1.56       8.10    -94.3                3         0.02
+25      1.53       8.11    -94.4                3         0.03
+26      1.55       8.09    -94.4                3         0.02
+   gyros_belt_y gyros_belt_z accel_belt_x accel_belt_y accel_belt_z
+1          0.00        -0.02          -21            4           22
+21         0.00        -0.02          -20            1           20
+22         0.02        -0.02          -21            3           21
+23         0.00        -0.02          -21            4           21
+25         0.00         0.00          -19            4           21
+26         0.00         0.00          -21            3           22
+   magnet_belt_x magnet_belt_y magnet_belt_z roll_arm pitch_arm yaw_arm
+1             -3           599          -313     -128      22.5    -161
+21           -10           607          -304     -129      20.9    -161
+22            -2           604          -313     -129      20.8    -161
+23            -4           606          -311     -129      20.7    -161
+25            -8           605          -319     -129      20.7    -161
+26           -10           601          -312     -129      20.7    -161
+   total_accel_arm gyros_arm_x gyros_arm_y gyros_arm_z accel_arm_x
+1               34        0.00        0.00       -0.02        -288
+21              34        0.03       -0.02       -0.02        -288
+22              34        0.03       -0.02       -0.02        -289
+23              34        0.02       -0.02       -0.02        -290
+25              34       -0.02       -0.02        0.00        -289
+26              34       -0.02       -0.02       -0.02        -290
+   accel_arm_y accel_arm_z magnet_arm_x magnet_arm_y magnet_arm_z
+1          109        -123         -368          337          516
+21         111        -124         -375          337          513
+22         111        -123         -372          338          510
+23         110        -123         -373          333          509
+25         109        -123         -370          340          512
+26         108        -123         -366          346          511
+   roll_dumbbell pitch_dumbbell yaw_dumbbell total_accel_dumbbell
+1       13.05217      -70.49400    -84.87394                   37
+21      13.38246      -70.81759    -84.46500                   37
+22      13.37872      -70.42856    -84.85306                   37
+23      13.35451      -70.63995    -84.64919                   37
+25      13.05217      -70.49400    -84.87394                   37
+26      12.80060      -70.31305    -85.11886                   37
+   gyros_dumbbell_x gyros_dumbbell_y gyros_dumbbell_z accel_dumbbell_x
+1                 0            -0.02             0.00             -234
+21                0            -0.02             0.00             -234
+22                0            -0.02             0.00             -233
+23                0            -0.02             0.00             -234
+25                0            -0.02             0.00             -234
+26                0            -0.02            -0.02             -233
+   accel_dumbbell_y accel_dumbbell_z magnet_dumbbell_x
+1                47             -271              -559
+21               48             -269              -554
+22               48             -270              -554
+23               48             -270              -557
+25               47             -271              -555
+26               46             -271              -563
+   magnet_dumbbell_y magnet_dumbbell_z roll_forearm pitch_forearm
+1                293               -65         28.4         -63.9
+21               299               -72         26.9         -63.9
+22               301               -65         27.0         -63.9
+23               294               -69         26.9         -63.8
+25               290               -68         27.1         -63.7
+26               294               -72         27.0         -63.7
+   yaw_forearm total_accel_forearm gyros_forearm_x gyros_forearm_y
+1         -153                  36            0.03            0.00
+21        -151                  36            0.03           -0.03
+22        -151                  36            0.02           -0.03
+23        -151                  36            0.02           -0.02
+25        -151                  36            0.05           -0.03
+26        -151                  36            0.03            0.00
+   gyros_forearm_z accel_forearm_x accel_forearm_y accel_forearm_z
+1            -0.02             192             203            -215
+21           -0.02             194             208            -214
+22           -0.02             191             206            -213
+23           -0.02             194             206            -214
+25            0.00             191             202            -214
+26            0.00             190             203            -216
+   magnet_forearm_x magnet_forearm_y magnet_forearm_z classe
+1               -17              654              476      A
+21              -11              654              469      A
+22              -17              654              478      A
+23              -10              653              467      A
+25              -14              667              470      A
+26              -16              658              462      A
+```
+
+```r
+plot(subTraining$classe, col="blue", main="Bar Plot of levels of the variable classe within the subTraining data set", xlab="classe levels", ylab="Frequency")
+```
+
+![Rplot23](Rplot23.png)
+
+From the graph above, we can see that each level frequency is within the same order of magnitude of each other. Level A is the most frequent with more than 4000 occurrences while level D is the least frequent with about 2500 occurrences.
+
+####Decision Tree
+
+```r
+model1 <- rpart(classe ~ ., data=subTraining, method="class")
+prediction1 <- predict(model1, subTesting, type = "class")
+rpart.plot(model1, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+```
+
+![Rplot24](Rplot24.png)
+
+```r
+confusionMatrix(prediction1, subTesting$classe)
+```
+
+```
+##Confusion Matrix and Statistics
+
+          Reference
+Prediction    A    B    C    D    E
+         A 1235  157   16   50   20
+         B   55  568   73   80  102
+         C   44  125  690  118  116
+         D   41   64   50  508   38
+         E   20   35   26   48  625
+
+Overall Statistics
+                                          
+               Accuracy : 0.7394          
+                 95% CI : (0.7269, 0.7516)
+    No Information Rate : 0.2845          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.6697          
+ Mcnemar's Test P-Value : < 2.2e-16       
+
+Statistics by Class:
+
+                     Class: A Class: B Class: C Class: D Class: E
+Sensitivity            0.8853   0.5985   0.8070   0.6318   0.6937
+Specificity            0.9307   0.9216   0.9005   0.9529   0.9678
+Pos Pred Value         0.8356   0.6469   0.6313   0.7247   0.8289
+Neg Pred Value         0.9533   0.9054   0.9567   0.9296   0.9335
+Prevalence             0.2845   0.1935   0.1743   0.1639   0.1837
+Detection Rate         0.2518   0.1158   0.1407   0.1036   0.1274
+Detection Prevalence   0.3014   0.1790   0.2229   0.1429   0.1538
+Balanced Accuracy      0.9080   0.7601   0.8537   0.7924   0.8307
+```
+
+####Using Random Forest
+
+```r
+model2 <- randomForest(classe ~. , data=subTraining, method="class")
+prediction2 <- predict(model2, subTesting, type = "class")
+confusionMatrix(prediction2, subTesting$classe)
+```
+
+```
+##Confusion Matrix and Statistics
+
+          Reference
+Prediction    A    B    C    D    E
+         A 1394    3    0    0    0
+         B    1  944   10    0    0
+         C    0    2  843    6    0
+         D    0    0    2  798    0
+         E    0    0    0    0  901
+
+Overall Statistics
+                                          
+               Accuracy : 0.9951          
+                 95% CI : (0.9927, 0.9969)
+    No Information Rate : 0.2845          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9938          
+ Mcnemar's Test P-Value : NA              
+
+Statistics by Class:
+
+                     Class: A Class: B Class: C Class: D Class: E
+Sensitivity            0.9993   0.9947   0.9860   0.9925   1.0000
+Specificity            0.9991   0.9972   0.9980   0.9995   1.0000
+Pos Pred Value         0.9979   0.9885   0.9906   0.9975   1.0000
+Neg Pred Value         0.9997   0.9987   0.9970   0.9985   1.0000
+Prevalence             0.2845   0.1935   0.1743   0.1639   0.1837
+Detection Rate         0.2843   0.1925   0.1719   0.1627   0.1837
+Detection Prevalence   0.2849   0.1947   0.1735   0.1631   0.1837
+Balanced Accuracy      0.9992   0.9960   0.9920   0.9960   1.0000
+```
+
+###Submission
+
+```r
+predictfinal <- predict(model2, testingset, type="class")
+predictfinal
+```
+
+```
+## 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 
+##B  A  B  A  A  E  D  B  A  A  B  C  B  A  E  E  A  B  B  B 
+##Levels: A B C D E
+```
+
+```r
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predictfinal)
+```
+
